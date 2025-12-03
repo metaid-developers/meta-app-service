@@ -428,7 +428,6 @@ func (h *MetaAppHandler) ServeMetaAppStaticFiles(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("ServeMetaAppStaticFiles: pinID: %s\n", pinID)
 	// 排除已知的静态文件路径，这些应该由其他路由处理
 	// 例如: indexer.js, indexer.html, static, swagger, api, health 等
 	excludedPaths := []string{
@@ -452,22 +451,53 @@ func (h *MetaAppHandler) ServeMetaAppStaticFiles(c *gin.Context) {
 
 	// 获取文件路径（如果请求的是 /{pinId}/index.html，filepath 会是 "/index.html"）
 	// 如果请求的是 /{pinId}，filepath 会是空字符串
-	filePath := c.Param("filepath")
+	requestedFilePath := c.Param("filepath")
 
 	// 移除前导斜杠（如果存在）
-	filePath = strings.TrimPrefix(filePath, "/")
-	if filePath == "" {
-		// 如果没有指定文件路径，默认使用 index.html
-		filePath = "index.html"
-	}
+	requestedFilePath = strings.TrimPrefix(requestedFilePath, "/")
+
 	// 获取部署基础目录
 	deployBaseDir := conf.Cfg.MetaApp.DeployFilePath
 	if deployBaseDir == "" {
 		deployBaseDir = "./meta_app_deploy_data"
 	}
 
-	// 构建完整的文件路径
+	// 构建应用部署目录
 	appDeployDir := filepath.Join(deployBaseDir, pinID)
+
+	// 检查应用部署目录是否存在
+	if _, err := os.Stat(appDeployDir); os.IsNotExist(err) {
+		fmt.Printf("[ServeMetaAppStaticFiles] App directory not found: %s\n", appDeployDir)
+		respond.NotFound(c, "metaapp not deployed")
+		return
+	}
+
+	// 如果没有指定文件路径（即访问 /{pinId} 而不是 /{pinId}/），
+	// 则重定向到带斜杠的版本，这样可以确保浏览器的基础路径正确
+	// 避免前端资源路径解析错误
+	if requestedFilePath == "" {
+		// 获取完整的请求路径
+		fullPath := c.Request.URL.Path
+		// 如果路径不以斜杠结尾，重定向到带斜杠的版本
+		if !strings.HasSuffix(fullPath, "/") {
+			// 301 永久重定向到带斜杠的版本
+			c.Redirect(301, "/metaapp"+fullPath+"/")
+			fmt.Printf("[ServeMetaAppStaticFiles] Redirecting to: %s\n", fullPath+"/")
+			return
+		}
+		// 如果已经有斜杠（即访问 /{pinId}/），则使用 index.html
+		fmt.Printf("[ServeMetaAppStaticFiles] Serving index.html for pinID: %s\n", pinID)
+	}
+
+	// 确定要服务的文件路径
+	filePath := requestedFilePath
+	if filePath == "" {
+		filePath = "index.html"
+	} else {
+		fmt.Printf("[ServeMetaAppStaticFiles] Requested filepath: %s for pinID: %s\n", filePath, pinID)
+	}
+
+	// 构建完整的文件路径
 	fullFilePath := filepath.Join(appDeployDir, filePath)
 
 	// 安全检查：防止路径遍历攻击
