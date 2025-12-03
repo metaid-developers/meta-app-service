@@ -625,18 +625,6 @@ func (s *IndexerService) addToDeployQueue(metaApp *model.MetaApp) error {
 	return database.DB.AddToDeployQueue(queue)
 }
 
-// extractPinIDFromMetafile 从 metafile://pinid 格式中提取 pinId
-func extractPinIDFromMetafile(metafile string) string {
-	if metafile == "" {
-		return ""
-	}
-	// 移除 metafile:// 前缀
-	if strings.HasPrefix(metafile, "metafile://") {
-		return strings.TrimPrefix(metafile, "metafile://")
-	}
-	return metafile
-}
-
 // StartDeployProcessor 启动部署处理器（后台 goroutine）
 func (s *IndexerService) StartDeployProcessor() {
 	go s.deployProcessor()

@@ -54,11 +54,11 @@ func (s *IndexerAppService) ListMetaApps(cursor, size int64) ([]*MetaAppWithDepl
 			MetaApp: app,
 		}
 
-		// 获取部署信息（使用 first_pin_id）
-		deployPinID := app.FirstPinId
-		if deployPinID == "" {
-			deployPinID = app.PinID
-		}
+		// 获取部署信息
+		deployPinID := app.PinID
+		// if deployPinID == "" {
+		// 	deployPinID = app.PinID
+		// }
 		deployInfo, err := database.DB.GetDeployFileContent(deployPinID)
 		if err == nil && deployInfo != nil {
 			appWithDeploy.DeployInfo = deployInfo
@@ -92,11 +92,11 @@ func (s *IndexerAppService) GetMetaAppsByCreatorMetaID(metaID string, cursor, si
 			MetaApp: app,
 		}
 
-		// 获取部署信息（使用 first_pin_id）
-		deployPinID := app.FirstPinId
-		if deployPinID == "" {
-			deployPinID = app.PinID
-		}
+		// 获取部署信息
+		deployPinID := app.PinID
+		// if deployPinID == "" {
+		// 	deployPinID = app.PinID
+		// }
 		deployInfo, err := database.DB.GetDeployFileContent(deployPinID)
 		if err == nil && deployInfo != nil {
 			appWithDeploy.DeployInfo = deployInfo
@@ -163,7 +163,7 @@ func (s *IndexerAppService) GetMetaAppByFirstPinID(firstPinID string) (*MetaAppW
 	}
 
 	// 获取部署信息
-	deployInfo, err := database.DB.GetDeployFileContent(firstPinID)
+	deployInfo, err := database.DB.GetDeployFileContent(app.PinID)
 	if err == nil && deployInfo != nil {
 		appWithDeploy.DeployInfo = deployInfo
 	}
@@ -192,7 +192,7 @@ func (s *IndexerAppService) GetMetaAppHistoryByFirstPinID(firstPinID string) ([]
 		}
 
 		// 获取部署信息（使用 first_pin_id）
-		deployInfo, err := database.DB.GetDeployFileContent(firstPinID)
+		deployInfo, err := database.DB.GetDeployFileContent(app.PinID)
 		if err == nil && deployInfo != nil {
 			appWithDeploy.DeployInfo = deployInfo
 		}
