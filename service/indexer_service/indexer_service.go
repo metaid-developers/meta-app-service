@@ -761,6 +761,7 @@ func (s *IndexerService) deployMetaApp(queueItem *model.MetaAppDeployQueue) erro
 	// 4. 下载文件
 	filePath, err := s.downloadFileFromPinID(pinIDToDownload, appDeployDir)
 	if err != nil {
+		log.Printf("Failed to download file from pinId: %s, error: %v", pinIDToDownload, err)
 		// 下载失败，更新状态为 failed 并记录错误信息
 		deployContent := &model.MetaAppDeployFileContent{
 			FirstPinId:     metaApp.FirstPinId,
@@ -812,6 +813,7 @@ func (s *IndexerService) deployMetaApp(queueItem *model.MetaAppDeployQueue) erro
 	if err := database.DB.CreateOrUpdateDeployFileContent(deployContent); err != nil {
 		return fmt.Errorf("failed to update deploy file content: %w", err)
 	}
+	// fmt.Printf("Deploy file content updated successfully: %+v", deployContent)
 
 	return nil
 }

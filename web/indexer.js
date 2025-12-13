@@ -640,7 +640,7 @@ function createAppCard(app) {
                 运行
             </button>
             ` : deployStatusClass === 'failed' ? `
-            <button class="btn-action btn-run" onclick="redeployApp('${app.first_pin_id}')" title="重新部署应用">
+            <button class="btn-action btn-run" onclick="redeployApp('${app.pin_id}')" title="重新部署应用">
                 重新部署
             </button>
             ` : `

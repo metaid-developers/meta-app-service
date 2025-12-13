@@ -127,14 +127,14 @@ func (s *IndexerAppService) GetMetaAppByPinID(pinID string) (*MetaAppWithDeploy,
 
 	// 获取部署信息（使用 first_pin_id 对应的部署信息，如果有的话）
 	deployPinID := pinID
-	if app.FirstPinId != "" {
-		// 尝试使用 first_pin_id 获取部署信息（因为部署是基于 first_pin_id 的）
-		deployInfo, err := database.DB.GetDeployFileContent(app.FirstPinId)
-		if err == nil && deployInfo != nil {
-			appWithDeploy.DeployInfo = deployInfo
-			return appWithDeploy, nil
-		}
-	}
+	// if app.FirstPinId != "" {
+	// 	// 尝试使用 first_pin_id 获取部署信息（因为部署是基于 first_pin_id 的）
+	// 	deployInfo, err := database.DB.GetDeployFileContent(app.FirstPinId)
+	// 	if err == nil && deployInfo != nil {
+	// 		appWithDeploy.DeployInfo = deployInfo
+	// 		return appWithDeploy, nil
+	// 	}
+	// }
 
 	// 如果 first_pin_id 没有部署信息，尝试使用当前 pinID
 	deployInfo, err := database.DB.GetDeployFileContent(deployPinID)
@@ -231,38 +231,45 @@ func (s *IndexerAppService) RedeployMetaApp(pinID string) error {
 		return fmt.Errorf("failed to get MetaApp: %w", err)
 	}
 
+	fristMetaApp, err := database.DB.GetLatestMetaAppByFirstPinID(metaApp.FirstPinId)
+	if err != nil {
+		return err
+	}
+
+	deployPinId := fristMetaApp.PinID
+
 	// 2. 检查是否已经在队列中，如果在则返回错误
-	existingQueueItem, err := database.DB.GetDeployQueueItem(pinID)
+	existingQueueItem, err := database.DB.GetDeployQueueItem(deployPinId)
 	if err == nil && existingQueueItem != nil {
 		// 已经在队列中，返回错误
-		return fmt.Errorf("MetaApp %s is already in deploy queue", pinID)
+		return fmt.Errorf("MetaApp %s is already in deploy queue", deployPinId)
 	}
 
 	// 3. 准备部署队列项
-	codePinID := metaApp.Code
+	codePinID := fristMetaApp.Code
 	if codePinID == "" {
 		// 如果没有 Code，尝试使用 Content
-		if metaApp.Content != "" {
-			if !strings.HasPrefix(metaApp.Content, "metafile://") {
-				codePinID = "metafile://" + metaApp.Content
+		if fristMetaApp.Content != "" {
+			if !strings.HasPrefix(fristMetaApp.Content, "metafile://") {
+				codePinID = "metafile://" + fristMetaApp.Content
 			} else {
-				codePinID = metaApp.Content
+				codePinID = fristMetaApp.Content
 			}
 		}
 	}
 
 	if codePinID == "" {
-		return fmt.Errorf("no code or content pinId found for MetaApp %s", pinID)
+		return fmt.Errorf("no code or content pinId found for MetaApp %s", deployPinId)
 	}
 
 	// 4. 创建新的部署队列项（重置 TryCount 为 0）
 	queue := &model.MetaAppDeployQueue{
-		PinID:       metaApp.PinID,
-		Timestamp:   metaApp.Timestamp,
-		Content:     metaApp.Content,
+		PinID:       fristMetaApp.PinID,
+		Timestamp:   fristMetaApp.Timestamp,
+		Content:     fristMetaApp.Content,
 		Code:        codePinID,
-		ContentType: metaApp.ContentType,
-		Version:     metaApp.Version,
+		ContentType: fristMetaApp.ContentType,
+		Version:     fristMetaApp.Version,
 		TryCount:    0, // 重置重试次数
 		CreatedAt:   time.Now(),
 	}
