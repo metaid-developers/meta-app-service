@@ -481,7 +481,8 @@ func (h *MetaAppHandler) ServeMetaAppStaticFiles(c *gin.Context) {
 		// 如果路径不以斜杠结尾，重定向到带斜杠的版本
 		if !strings.HasSuffix(fullPath, "/") {
 			// 301 永久重定向到带斜杠的版本
-			c.Redirect(301, "/metaapp"+fullPath+"/")
+			pathPrefix := getPathPrefix(c)
+			c.Redirect(301, pathPrefix+fullPath+"/")
 			fmt.Printf("[ServeMetaAppStaticFiles] Redirecting to: %s\n", fullPath+"/")
 			return
 		}
@@ -536,6 +537,22 @@ func (h *MetaAppHandler) ServeMetaAppStaticFiles(c *gin.Context) {
 	// 直接返回文件内容，不重定向
 	// 使用 c.File() 但确保不会重定向
 	c.File(cleanFilePath)
+}
+
+// getPathPrefix 获取路径前缀，优先级：配置 > X-Forwarded-Prefix 请求头 > 空字符串
+func getPathPrefix(c *gin.Context) string {
+	// 1. 优先使用配置
+	if conf.Cfg != nil && conf.Cfg.Indexer.PathPrefix != "" {
+		return conf.Cfg.Indexer.PathPrefix
+	}
+
+	// 2. 其次使用请求头（反向代理常用）
+	if prefix := c.GetHeader("X-Forwarded-Prefix"); prefix != "" {
+		return prefix
+	}
+
+	// 3. 默认返回空字符串
+	return ""
 }
 
 // getContentType 根据文件扩展名返回 Content-Type

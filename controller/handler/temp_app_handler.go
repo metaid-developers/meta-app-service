@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -139,12 +140,18 @@ func (h *TempAppHandler) ServeTempAppStaticFiles(c *gin.Context) {
 		return
 	}
 
+	log.Println("tokenID", tokenID)
+
 	// 获取文件路径（如果请求的是 /temp/{tokenId}/index.html，filepath 会是 "/index.html"）
 	// 如果请求的是 /temp/{tokenId}，filepath 会是空字符串
 	requestedFilePath := c.Param("filepath")
 
+	log.Println("requestedFilePath", requestedFilePath)
+
 	// 移除前导斜杠（如果存在）
 	requestedFilePath = strings.TrimPrefix(requestedFilePath, "/")
+
+	log.Println("requestedFilePath after trim", requestedFilePath)
 
 	// 获取部署基础目录
 	deployBaseDir := conf.Cfg.TempApp.DeployFilePath
@@ -154,6 +161,8 @@ func (h *TempAppHandler) ServeTempAppStaticFiles(c *gin.Context) {
 
 	// 构建应用部署目录
 	appDeployDir := filepath.Join(deployBaseDir, tokenID)
+
+	log.Println("appDeployDir", appDeployDir)
 
 	// 检查应用部署目录是否存在
 	if _, err := os.Stat(appDeployDir); os.IsNotExist(err) {
@@ -169,11 +178,14 @@ func (h *TempAppHandler) ServeTempAppStaticFiles(c *gin.Context) {
 		// 如果路径不以斜杠结尾，重定向到带斜杠的版本
 		if !strings.HasSuffix(fullPath, "/") {
 			// 301 永久重定向到带斜杠的版本
-			c.Redirect(301, fullPath+"/")
+			pathPrefix := getPathPrefix(c)
+			c.Redirect(301, pathPrefix+fullPath+"/")
 			return
 		}
 		// 如果已经有斜杠（即访问 /temp/{tokenId}/），则使用 index.html
 	}
+
+	log.Println("requestedFilePath", requestedFilePath)
 
 	// 确定要服务的文件路径
 	filePath := requestedFilePath

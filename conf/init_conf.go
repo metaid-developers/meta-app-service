@@ -79,6 +79,7 @@ type IndexerConfig struct {
 	SwaggerBaseUrl     string // Swagger API base URL
 	ZmqEnabled         bool   // Enable ZMQ real-time monitoring
 	ZmqAddress         string // ZMQ server address
+	PathPrefix         string // Path prefix for reverse proxy (e.g., "/metaapp")
 }
 
 // MetaAppConfig MetaApp configuration
@@ -157,6 +158,7 @@ func InitConfig() error {
 			SwaggerBaseUrl:     viper.GetString("indexer.swagger_base_url"),
 			ZmqEnabled:         viper.GetBool("indexer.zmq_enabled"),
 			ZmqAddress:         viper.GetString("indexer.zmq_address"),
+			PathPrefix:         viper.GetString("indexer.path_prefix"),
 		},
 
 		MetaApp: MetaAppConfig{
