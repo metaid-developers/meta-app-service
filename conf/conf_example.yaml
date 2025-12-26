@@ -28,6 +28,12 @@ chain:
 meta_app:
   deploy_file_path: "./meta_app_deploy_data"
 
+temp_app:
+  enable: true
+  deploy_file_path: "./temp_app_deploy_data"  # temp app deploy file path
+  expire_hours: 24  # temp app expire hours
+  chunk_size: 5  # temp app chunk size (MB, default 5MB)
+
 metafs:
   domain: "http://localhost:7281"  # Metafs service domain (e.g., "https://file.metaid.io")
 

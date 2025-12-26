@@ -19,6 +19,7 @@ services:
       # Mount data directories (persistent storage)
       - ../../indexer_pebble_data:/app/indexer_pebble_data
       - ../../meta_app_deploy_data:/app/meta_app_deploy_data
+      - ../../temp_app_deploy_data:/app/temp_app_deploy_data
       # Mount local data directory if needed
       - ../../data/pebble:/app/data/pebble
     networks:

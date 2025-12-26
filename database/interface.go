@@ -32,6 +32,18 @@ type Database interface {
 	CreateOrUpdateDeployFileContent(content *model.MetaAppDeployFileContent) error
 	GetDeployFileContent(pinID string) (*model.MetaAppDeployFileContent, error)
 
+	// TempApp deploy operations
+	CreateTempAppDeploy(deploy *model.TempAppDeploy) error
+	GetTempAppDeployByTokenID(tokenID string) (*model.TempAppDeploy, error)
+	DeleteTempAppDeploy(tokenID string) error
+	ListExpiredTempAppDeploys() ([]*model.TempAppDeploy, error)
+
+	// TempApp chunk upload operations
+	CreateTempAppChunkUpload(upload *model.TempAppChunkUpload) error
+	GetTempAppChunkUploadByUploadID(uploadID string) (*model.TempAppChunkUpload, error)
+	UpdateTempAppChunkUpload(upload *model.TempAppChunkUpload) error
+	DeleteTempAppChunkUpload(uploadID string) error
+
 	// General operations
 	Close() error
 }

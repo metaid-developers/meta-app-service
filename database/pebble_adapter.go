@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	model "meta-app-service/models"
 
@@ -39,6 +40,9 @@ const (
 
 	collectionMetaAppDeployFileContent = "metaapp_deploy_file_content" // key: {pin_id}, value: JSON(MetaAppDeployFileContent) - 部署文件内容
 	collectionMetaAppDeployQueue       = "metaapp_deploy_queue"        // key: {reverse_timestamp}:{pin_id}, value: JSON(MetaAppDeployQueue) - 部署队列（按时间戳倒序）
+
+	collectionTempAppDeploy      = "temp_app_deploy"       // key: {token_id}, value: JSON(TempAppDeploy) - 临时应用部署
+	collectionTempAppChunkUpload = "temp_app_chunk_upload" // key: {upload_id}, value: JSON(TempAppChunkUpload) - 临时应用分片上传
 
 	// System collections
 	collectionSyncStatus = "sync_status" // key: {chain_name}, value: JSON(IndexerSyncStatus) - 同步状态
@@ -73,6 +77,8 @@ func NewPebbleDatabase(config interface{}) (Database, error) {
 		collectionMetaAppTimestamp,
 		collectionMetaAppDeployFileContent,
 		collectionMetaAppDeployQueue,
+		collectionTempAppDeploy,
+		collectionTempAppChunkUpload,
 		collectionSyncStatus,
 		collectionCounters,
 	}
@@ -736,6 +742,125 @@ func (p *PebbleDatabase) GetDeployFileContent(pinID string) (*model.MetaAppDeplo
 	}
 
 	return &content, nil
+}
+
+// TempApp deploy operations
+
+// CreateTempAppDeploy 创建临时应用部署记录
+func (p *PebbleDatabase) CreateTempAppDeploy(deploy *model.TempAppDeploy) error {
+	data, err := json.Marshal(deploy)
+	if err != nil {
+		return err
+	}
+
+	// key: token_id
+	return p.collections[collectionTempAppDeploy].Set([]byte(deploy.TokenID), data, pebble.Sync)
+}
+
+// GetTempAppDeployByTokenID 根据 TokenID 获取临时应用部署记录
+func (p *PebbleDatabase) GetTempAppDeployByTokenID(tokenID string) (*model.TempAppDeploy, error) {
+	deployDB := p.collections[collectionTempAppDeploy]
+
+	data, closer, err := deployDB.Get([]byte(tokenID))
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	defer closer.Close()
+
+	var deploy model.TempAppDeploy
+	if err := json.Unmarshal(data, &deploy); err != nil {
+		return nil, err
+	}
+
+	return &deploy, nil
+}
+
+// DeleteTempAppDeploy 删除临时应用部署记录
+func (p *PebbleDatabase) DeleteTempAppDeploy(tokenID string) error {
+	deployDB := p.collections[collectionTempAppDeploy]
+	return deployDB.Delete([]byte(tokenID), pebble.Sync)
+}
+
+// ListExpiredTempAppDeploys 获取所有过期的临时应用部署记录
+func (p *PebbleDatabase) ListExpiredTempAppDeploys() ([]*model.TempAppDeploy, error) {
+	deployDB := p.collections[collectionTempAppDeploy]
+
+	iter, err := deployDB.NewIter(nil)
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	now := time.Now()
+	expired := make([]*model.TempAppDeploy, 0)
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		var deploy model.TempAppDeploy
+		if err := json.Unmarshal(iter.Value(), &deploy); err != nil {
+			continue
+		}
+
+		// 检查是否过期
+		if deploy.ExpiresAt.Before(now) {
+			expired = append(expired, &deploy)
+		}
+	}
+
+	return expired, nil
+}
+
+// TempApp chunk upload operations
+
+// CreateTempAppChunkUpload 创建临时应用分片上传记录
+func (p *PebbleDatabase) CreateTempAppChunkUpload(upload *model.TempAppChunkUpload) error {
+	data, err := json.Marshal(upload)
+	if err != nil {
+		return err
+	}
+
+	// key: upload_id
+	return p.collections[collectionTempAppChunkUpload].Set([]byte(upload.UploadID), data, pebble.Sync)
+}
+
+// GetTempAppChunkUploadByUploadID 根据 UploadID 获取临时应用分片上传记录
+func (p *PebbleDatabase) GetTempAppChunkUploadByUploadID(uploadID string) (*model.TempAppChunkUpload, error) {
+	uploadDB := p.collections[collectionTempAppChunkUpload]
+
+	data, closer, err := uploadDB.Get([]byte(uploadID))
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	defer closer.Close()
+
+	var upload model.TempAppChunkUpload
+	if err := json.Unmarshal(data, &upload); err != nil {
+		return nil, err
+	}
+
+	return &upload, nil
+}
+
+// UpdateTempAppChunkUpload 更新临时应用分片上传记录
+func (p *PebbleDatabase) UpdateTempAppChunkUpload(upload *model.TempAppChunkUpload) error {
+	data, err := json.Marshal(upload)
+	if err != nil {
+		return err
+	}
+
+	// key: upload_id
+	return p.collections[collectionTempAppChunkUpload].Set([]byte(upload.UploadID), data, pebble.Sync)
+}
+
+// DeleteTempAppChunkUpload 删除临时应用分片上传记录
+func (p *PebbleDatabase) DeleteTempAppChunkUpload(uploadID string) error {
+	uploadDB := p.collections[collectionTempAppChunkUpload]
+	return uploadDB.Delete([]byte(uploadID), pebble.Sync)
 }
 
 // Close close all database connections

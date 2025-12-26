@@ -23,6 +23,9 @@ type Config struct {
 	// MetaApp configuration
 	MetaApp MetaAppConfig
 
+	// TempApp configuration
+	TempApp TempAppConfig
+
 	// Metafs configuration
 	Metafs MetafsConfig
 }
@@ -81,6 +84,15 @@ type IndexerConfig struct {
 // MetaAppConfig MetaApp configuration
 type MetaAppConfig struct {
 	DeployFilePath string // Deploy file path for MetaApp
+}
+
+// TempAppConfig 临时应用配置
+type TempAppConfig struct {
+	Enable         bool   // 是否启用临时应用
+	DeployFilePath string // 临时应用部署路径
+	ExpireHours    int    // 过期时间（小时）
+	ChunkSize      int64  // 分片大小（字节，内部使用，从配置的 MB 转换而来）
+	ChunkSizeMB    int    // 分片大小（MB，配置使用）
 }
 
 // MetafsConfig Metafs service configuration
@@ -151,6 +163,13 @@ func InitConfig() error {
 			DeployFilePath: viper.GetString("meta_app.deploy_file_path"),
 		},
 
+		TempApp: TempAppConfig{
+			Enable:         viper.GetBool("temp_app.enable"),
+			DeployFilePath: viper.GetString("temp_app.deploy_file_path"),
+			ExpireHours:    viper.GetInt("temp_app.expire_hours"),
+			ChunkSizeMB:    viper.GetInt("temp_app.chunk_size"),
+		},
+
 		Metafs: MetafsConfig{
 			Domain: viper.GetString("metafs.domain"),
 		},
@@ -177,6 +196,20 @@ func InitConfig() error {
 	}
 	if Cfg.MetaApp.DeployFilePath == "" {
 		Cfg.MetaApp.DeployFilePath = "./deploy_data"
+	}
+	if Cfg.TempApp.Enable == false {
+		Cfg.TempApp.Enable = true
+	}
+	if Cfg.TempApp.DeployFilePath == "" {
+		Cfg.TempApp.DeployFilePath = "./temp_app_deploy_data"
+	}
+	if Cfg.TempApp.ChunkSizeMB == 0 {
+		Cfg.TempApp.ChunkSizeMB = 5 // 默认 5MB
+	}
+	// 将 MB 转换为字节
+	Cfg.TempApp.ChunkSize = int64(Cfg.TempApp.ChunkSizeMB) * 1024 * 1024
+	if Cfg.TempApp.ExpireHours == 0 {
+		Cfg.TempApp.ExpireHours = 24 // 默认 24 小时
 	}
 
 	// Initialize RpcConfigMap (use currently configured chain)

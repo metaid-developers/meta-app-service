@@ -208,6 +208,81 @@ definitions:
         example: 123
         type: integer
     type: object
+  meta-app-service_controller_respond.TempAppChunkInitResponse:
+    properties:
+      chunk_size:
+        description: 分片大小
+        type: integer
+      total_chunks:
+        description: 总分片数
+        type: integer
+      upload_id:
+        description: 上传 ID
+        type: string
+    type: object
+  meta-app-service_controller_respond.TempAppChunkUploadResponse:
+    properties:
+      chunk_size:
+        description: 分片大小
+        type: integer
+      message:
+        description: 错误信息等
+        type: string
+      progress:
+        description: 上传进度（0-100）
+        type: number
+      status:
+        description: '状态: uploading/merging/completed/failed'
+        type: string
+      token_id:
+        description: 临时应用 TokenID（合并后生成）
+        type: string
+      total_chunks:
+        description: 总分片数
+        type: integer
+      total_size:
+        description: 总文件大小
+        type: integer
+      upload_id:
+        description: 上传 ID
+        type: string
+      uploaded_chunks:
+        description: 已上传的分片索引列表
+        items:
+          type: integer
+        type: array
+    type: object
+  meta-app-service_controller_respond.TempAppDeployResponse:
+    properties:
+      deployment_details:
+        allOf:
+        - $ref: '#/definitions/meta-app-service_controller_respond.TempAppDeploymentDetails'
+        description: 部署详情
+      expires_at:
+        description: 过期时间
+        type: string
+      id:
+        description: TokenID
+        type: string
+      preview_url:
+        description: 预览 URL（完整 URL）
+        type: string
+      url:
+        description: 相对路径 URL
+        type: string
+    type: object
+  meta-app-service_controller_respond.TempAppDeploymentDetails:
+    properties:
+      deploy_file_path:
+        description: 部署文件路径
+        type: string
+      message:
+        description: 消息
+        type: string
+      status:
+        description: 状态
+        type: string
+    type: object
   meta-app-service_models.MetaAppDeployFileContent:
     properties:
       code:
@@ -686,6 +761,219 @@ paths:
       summary: 获取同步状态
       tags:
       - Indexer Status
+  /api/v1/temp-apps/{tokenId}:
+    get:
+      consumes:
+      - application/json
+      description: 根据 TokenID 获取临时应用的部署信息
+      parameters:
+      - description: 临时应用 TokenID
+        in: path
+        name: tokenId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/meta-app-service_controller_respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/meta-app-service_controller_respond.TempAppDeployResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+      summary: 根据 TokenID 获取临时应用部署信息
+      tags:
+      - TempApp
+  /api/v1/temp-apps/chunk/{uploadId}/{chunkIndex}:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传单个分片数据
+      parameters:
+      - description: 上传 ID
+        in: path
+        name: uploadId
+        required: true
+        type: string
+      - description: 分片索引（从 0 开始）
+        in: path
+        name: chunkIndex
+        required: true
+        type: integer
+      - description: 分片数据
+        in: formData
+        name: chunk
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+      summary: 上传分片
+      tags:
+      - TempApp
+  /api/v1/temp-apps/chunk/{uploadId}/merge:
+    post:
+      consumes:
+      - application/json
+      description: 合并所有分片并解压，创建临时应用部署
+      parameters:
+      - description: 上传 ID
+        in: path
+        name: uploadId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/meta-app-service_controller_respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/meta-app-service_controller_respond.TempAppDeployResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+      summary: 合并分片
+      tags:
+      - TempApp
+  /api/v1/temp-apps/chunk/{uploadId}/status:
+    get:
+      consumes:
+      - application/json
+      description: 查询分片上传的状态和进度
+      parameters:
+      - description: 上传 ID
+        in: path
+        name: uploadId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/meta-app-service_controller_respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/meta-app-service_controller_respond.TempAppChunkUploadResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+      summary: 获取分片上传状态
+      tags:
+      - TempApp
+  /api/v1/temp-apps/chunk/init:
+    post:
+      consumes:
+      - application/json
+      description: 初始化分片上传，返回 uploadId 和分片信息
+      parameters:
+      - description: 文件总大小（字节）
+        in: formData
+        name: total_size
+        required: true
+        type: integer
+      - description: 文件名
+        in: formData
+        name: filename
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/meta-app-service_controller_respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/meta-app-service_controller_respond.TempAppChunkInitResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+      summary: 初始化分片上传
+      tags:
+      - TempApp
+  /api/v1/temp-apps/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传 zip 包，生成唯一 tokenId，解压并保存，返回部署信息
+      parameters:
+      - description: zip 文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/meta-app-service_controller_respond.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/meta-app-service_controller_respond.TempAppDeployResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/meta-app-service_controller_respond.Response'
+      summary: 上传临时应用 zip 包
+      tags:
+      - TempApp
 schemes:
 - https
 - http

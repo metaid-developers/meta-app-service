@@ -54,13 +54,16 @@ RUN mkdir -p /app/data/files && \
     mkdir -p /app/pebble_data && \
     mkdir -p /app/indexer_pebble_data && \
     mkdir -p /app/meta_app_deploy_data && \
+    mkdir -p /app/temp_app_deploy_data && \
     chmod -R 755 /app/data && \
     chmod -R 755 /app/indexer_pebble_data && \
     chmod -R 755 /app/meta_app_deploy_data && \
+    chmod -R 755 /app/temp_app_deploy_data && \
     chown -R appuser:appuser /app && \
     chown -R appuser:appuser /app/data && \
     chown -R appuser:appuser /app/indexer_pebble_data && \
-    chown -R appuser:appuser /app/meta_app_deploy_data
+    chown -R appuser:appuser /app/meta_app_deploy_data && \
+    chown -R appuser:appuser /app/temp_app_deploy_data
 
 # Switch to non-root user
 USER appuser

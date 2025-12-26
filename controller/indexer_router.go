@@ -43,8 +43,9 @@ func SetupIndexerRouter(indexerService *indexer_service.IndexerService) *gin.Eng
 		syncStatusService.SetBlockScanner(indexerService.GetScanner())
 	}
 
-	// Create handler
+	// Create handlers
 	metaAppHandler := handler.NewMetaAppHandler(syncStatusService)
+	tempAppHandler := handler.NewTempAppHandler()
 
 	// API v1 route group
 	v1 := r.Group("/api/v1")
@@ -85,6 +86,32 @@ func SetupIndexerRouter(indexerService *indexer_service.IndexerService) *gin.Eng
 
 		// Deploy queue route
 		v1.GET("/deploy-queue", metaAppHandler.ListDeployQueue)
+
+		// TempApp routes
+		tempapps := v1.Group("/temp-apps")
+		{
+			// Chunk upload routes (must be before /:tokenId to avoid route conflict)
+			chunk := tempapps.Group("/chunk")
+			{
+				// Initialize chunk upload
+				chunk.POST("/init", tempAppHandler.InitChunkUpload)
+
+				// Get chunk upload status
+				chunk.GET("/:uploadId/status", tempAppHandler.GetChunkUploadStatus)
+
+				// Merge chunks
+				chunk.POST("/:uploadId/merge", tempAppHandler.MergeChunks)
+
+				// Upload chunk
+				chunk.POST("/:uploadId/:chunkIndex", tempAppHandler.UploadChunk)
+			}
+
+			// Upload temp app zip file
+			tempapps.POST("/upload", tempAppHandler.UploadTempApp)
+
+			// Get temp app by tokenId (must be last to avoid route conflict)
+			tempapps.GET("/:tokenId", tempAppHandler.GetTempAppByTokenID)
+		}
 	}
 
 	// Health check
@@ -112,6 +139,11 @@ func SetupIndexerRouter(indexerService *indexer_service.IndexerService) *gin.Eng
 		c.Header("Content-Type", "application/javascript; charset=utf-8")
 		c.File("./web/indexer.js")
 	})
+
+	// TempApp 静态文件服务路由（必须在 MetaApp 路由之前注册，避免路由冲突）
+	// 支持访问 /temp/{tokenId}/index.html 以及 /temp/{tokenId}/*filepath 下的所有静态资源
+	r.GET("/temp/:tokenId/*filepath", tempAppHandler.ServeTempAppStaticFiles)
+	r.GET("/temp/:tokenId", tempAppHandler.ServeTempAppStaticFiles)
 
 	// MetaApp 静态文件服务路由（必须在所有特定路由之后注册，避免路由冲突）
 	// 支持访问 /{pinId}/index.html 以及 /{pinId}/*filepath 下的所有静态资源

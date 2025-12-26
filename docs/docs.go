@@ -544,6 +544,350 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/v1/temp-apps/chunk/init": {
+            "post": {
+                "description": "初始化分片上传，返回 uploadId 和分片信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TempApp"
+                ],
+                "summary": "初始化分片上传",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "文件总大小（字节）",
+                        "name": "total_size",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "文件名",
+                        "name": "filename",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/meta-app-service_controller_respond.TempAppChunkInitResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/temp-apps/chunk/{uploadId}/merge": {
+            "post": {
+                "description": "合并所有分片并解压，创建临时应用部署",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TempApp"
+                ],
+                "summary": "合并分片",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "上传 ID",
+                        "name": "uploadId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/meta-app-service_controller_respond.TempAppDeployResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/temp-apps/chunk/{uploadId}/status": {
+            "get": {
+                "description": "查询分片上传的状态和进度",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TempApp"
+                ],
+                "summary": "获取分片上传状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "上传 ID",
+                        "name": "uploadId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/meta-app-service_controller_respond.TempAppChunkUploadResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/temp-apps/chunk/{uploadId}/{chunkIndex}": {
+            "post": {
+                "description": "上传单个分片数据",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TempApp"
+                ],
+                "summary": "上传分片",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "上传 ID",
+                        "name": "uploadId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "分片索引（从 0 开始）",
+                        "name": "chunkIndex",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "分片数据",
+                        "name": "chunk",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/temp-apps/upload": {
+            "post": {
+                "description": "上传 zip 包，生成唯一 tokenId，解压并保存，返回部署信息",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TempApp"
+                ],
+                "summary": "上传临时应用 zip 包",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "zip 文件",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/meta-app-service_controller_respond.TempAppDeployResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/temp-apps/{tokenId}": {
+            "get": {
+                "description": "根据 TokenID 获取临时应用的部署信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TempApp"
+                ],
+                "summary": "根据 TokenID 获取临时应用部署信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "临时应用 TokenID",
+                        "name": "tokenId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/meta-app-service_controller_respond.TempAppDeployResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.Response"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -835,6 +1179,113 @@ const docTemplate = `{
                 "processingTime": {
                     "type": "integer",
                     "example": 123
+                }
+            }
+        },
+        "meta-app-service_controller_respond.TempAppChunkInitResponse": {
+            "type": "object",
+            "properties": {
+                "chunk_size": {
+                    "description": "分片大小",
+                    "type": "integer"
+                },
+                "total_chunks": {
+                    "description": "总分片数",
+                    "type": "integer"
+                },
+                "upload_id": {
+                    "description": "上传 ID",
+                    "type": "string"
+                }
+            }
+        },
+        "meta-app-service_controller_respond.TempAppChunkUploadResponse": {
+            "type": "object",
+            "properties": {
+                "chunk_size": {
+                    "description": "分片大小",
+                    "type": "integer"
+                },
+                "message": {
+                    "description": "错误信息等",
+                    "type": "string"
+                },
+                "progress": {
+                    "description": "上传进度（0-100）",
+                    "type": "number"
+                },
+                "status": {
+                    "description": "状态: uploading/merging/completed/failed",
+                    "type": "string"
+                },
+                "token_id": {
+                    "description": "临时应用 TokenID（合并后生成）",
+                    "type": "string"
+                },
+                "total_chunks": {
+                    "description": "总分片数",
+                    "type": "integer"
+                },
+                "total_size": {
+                    "description": "总文件大小",
+                    "type": "integer"
+                },
+                "upload_id": {
+                    "description": "上传 ID",
+                    "type": "string"
+                },
+                "uploaded_chunks": {
+                    "description": "已上传的分片索引列表",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "meta-app-service_controller_respond.TempAppDeployResponse": {
+            "type": "object",
+            "properties": {
+                "deployment_details": {
+                    "description": "部署详情",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/meta-app-service_controller_respond.TempAppDeploymentDetails"
+                        }
+                    ]
+                },
+                "expires_at": {
+                    "description": "过期时间",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "TokenID",
+                    "type": "string"
+                },
+                "preview_url": {
+                    "description": "预览 URL（完整 URL）",
+                    "type": "string"
+                },
+                "url": {
+                    "description": "相对路径 URL",
+                    "type": "string"
+                }
+            }
+        },
+        "meta-app-service_controller_respond.TempAppDeploymentDetails": {
+            "type": "object",
+            "properties": {
+                "deploy_file_path": {
+                    "description": "部署文件路径",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "消息",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态",
+                    "type": "string"
                 }
             }
         },

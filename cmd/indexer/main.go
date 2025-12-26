@@ -15,6 +15,7 @@ import (
 	"meta-app-service/controller"
 	"meta-app-service/database"
 	"meta-app-service/service/indexer_service"
+	"meta-app-service/service/temp_deploy_service"
 )
 
 var ENV string
@@ -52,6 +53,10 @@ func main() {
 	// Start HTTP API service (in goroutine)
 	go startServer(srv)
 	log.Println("Indexer API service started successfully")
+
+	// Start temp app cleanup service (in goroutine)
+	go startTempAppCleanupService()
+	log.Println("Temp app cleanup service started successfully")
 
 	// Wait for shutdown signal
 	waitForShutdown()
@@ -158,5 +163,28 @@ func shutdownServer(srv *http.Server) {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
+	}
+}
+
+// startTempAppCleanupService 启动临时应用清理服务
+// 每小时执行一次清理过期临时应用
+func startTempAppCleanupService() {
+	cleanupService := temp_deploy_service.NewTempDeployService()
+
+	// 立即执行一次清理
+	if err := cleanupService.CleanupExpiredTempApps(); err != nil {
+		log.Printf("Failed to cleanup expired temp apps: %v", err)
+	}
+
+	// 创建定时器，每小时执行一次
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := cleanupService.CleanupExpiredTempApps(); err != nil {
+			log.Printf("Failed to cleanup expired temp apps: %v", err)
+		} else {
+			log.Println("Temp app cleanup completed successfully")
+		}
 	}
 }
