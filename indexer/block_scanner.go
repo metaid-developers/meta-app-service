@@ -18,15 +18,16 @@ import (
 
 // BlockScanner block scanner
 type BlockScanner struct {
-	rpcURL      string
-	rpcUser     string
-	rpcPassword string
-	startHeight int64
-	interval    time.Duration
-	chainType   ChainType // Chain type: btc or mvc
-	progressBar *progressbar.ProgressBar
-	zmqClient   *ZMQClient // ZMQ client for real-time transaction monitoring
-	zmqEnabled  bool       // Whether ZMQ is enabled
+	rpcURL       string
+	rpcUser      string
+	rpcPassword  string
+	startHeight  int64
+	interval     time.Duration
+	chainType    ChainType // Chain type: btc or mvc
+	progressBar  *progressbar.ProgressBar
+	zmqClient    *ZMQClient // ZMQ client for real-time transaction monitoring
+	zmqEnabled   bool        // Whether ZMQ is enabled
+	maxBlockSize int64 // Blocks larger than this use txid-list + getrawtransaction per tx (0 = no limit, always full block)
 }
 
 // NewBlockScanner create block scanner (default MVC)
@@ -66,6 +67,11 @@ func (s *BlockScanner) SetZMQTransactionHandler(handler func(tx interface{}, met
 	if s.zmqClient != nil {
 		s.zmqClient.SetTransactionHandler(handler)
 	}
+}
+
+// SetBlockSizeLimit set max block size (bytes) for large-block scanning strategy
+func (s *BlockScanner) SetBlockSizeLimit(maxBlockSize int64) {
+	s.maxBlockSize = maxBlockSize
 }
 
 // RPCRequest RPC request structure
@@ -195,6 +201,79 @@ func (s *BlockScanner) GetRawTransaction(txid string) (string, error) {
 	return txHex, nil
 }
 
+// BlockInfo lightweight block info from getblock(hash, 1): size, txid list, time
+type BlockInfo struct {
+	Size  int64    // Block size in bytes
+	TxIDs []string // Transaction IDs (hex)
+	Time  int64    // Block time (Unix seconds)
+}
+
+// GetBlockInfo get block info with verbosity=1 (size, tx ids, time) without raw block data
+func (s *BlockScanner) GetBlockInfo(blockhash string) (*BlockInfo, error) {
+	request := RPCRequest{
+		Jsonrpc: "1.0",
+		ID:      "getblock",
+		Method:  "getblock",
+		Params:  []interface{}{blockhash, 1}, // verbosity=1: block metadata + tx id list
+	}
+
+	response, err := s.rpcCall(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.Error != nil {
+		return nil, fmt.Errorf("rpc error: %s", response.Error.Message)
+	}
+
+	// Result is a JSON object: { "size": n, "tx": ["id1", ...], "time": n }
+	m, ok := response.Result.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("invalid getblock(1) response: result is not object")
+	}
+
+	info := &BlockInfo{}
+
+	if v, ok := m["size"]; ok {
+		switch n := v.(type) {
+		case float64:
+			info.Size = int64(n)
+		case int64:
+			info.Size = n
+		case int:
+			info.Size = int64(n)
+		}
+	}
+
+	if v, ok := m["time"]; ok {
+		switch n := v.(type) {
+		case float64:
+			info.Time = int64(n)
+		case int64:
+			info.Time = n
+		case int:
+			info.Time = int64(n)
+		}
+	}
+	// Time is in seconds; handler expects milliseconds
+	info.Time = info.Time * 1000
+
+	if v, ok := m["tx"]; ok {
+		arr, ok := v.([]interface{})
+		if !ok {
+			return nil, errors.New("invalid getblock(1) response: tx is not array")
+		}
+		info.TxIDs = make([]string, 0, len(arr))
+		for _, item := range arr {
+			if id, ok := item.(string); ok {
+				info.TxIDs = append(info.TxIDs, id)
+			}
+		}
+	}
+
+	return info, nil
+}
+
 // GetBlockMsg get block message (MsgBlock) with all transactions
 // Returns interface{} which can be *wire.MsgBlock (MVC) or *btcwire.MsgBlock (BTC)
 func (s *BlockScanner) GetBlockMsg(height int64) (interface{}, int, error) {
@@ -239,22 +318,35 @@ func (s *BlockScanner) GetBlockMsg(height int64) (interface{}, int, error) {
 // ScanBlock scan specified block
 // handler accepts interface{} for tx to support both BTC and MVC
 // Returns the number of processed MetaID transactions
+// For blocks larger than maxBlockSize, fetches tx list then getrawtransaction per tx to avoid OOM.
 func (s *BlockScanner) ScanBlock(height int64, handler func(tx interface{}, metaDataTx *MetaIDDataTx, height, timestamp int64) error) (int, error) {
-	// Get block message with all transactions
+	blockhash, err := s.GetBlockhash(height)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get block hash: %w", err)
+	}
+
+	blockInfo, err := s.GetBlockInfo(blockhash)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get block info: %w", err)
+	}
+
+	// Large block: scan by txid list and getrawtransaction per tx to avoid loading full block
+	if s.maxBlockSize > 0 && blockInfo.Size > s.maxBlockSize {
+		log.Printf("Block at height %d is large (%d bytes), scanning by txid list (%d txs)", height, blockInfo.Size, len(blockInfo.TxIDs))
+		return s.scanBlockByTxIDs(height, blockInfo, handler)
+	}
+
+	// Small block: get full block and scan in memory
 	msgBlockInterface, txCount, err := s.GetBlockMsg(height)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get block message: %w", err)
 	}
 
-	// log.Printf("Scanning block at height %d, transaction count: %d (chain: %s)", height, txCount, s.chainType)
-
 	processedCount := 0
 	metaidPinCount := 0
 
-	// Create parser
 	parser := NewMetaIDParser("")
 
-	// Process transactions based on chain type
 	if s.chainType == ChainTypeBTC {
 		// BTC block
 		btcBlock, ok := msgBlockInterface.(*btcwire.MsgBlock)
@@ -316,6 +408,61 @@ func (s *BlockScanner) ScanBlock(height int64, handler func(tx interface{}, meta
 	}
 	log.Printf("Scanned block at height %d, transaction count: %d (chain: %s), MetaID PIN count: %d", height, txCount, s.chainType, metaidPinCount)
 
+	return processedCount, nil
+}
+
+// scanBlockByTxIDs scans a large block by fetching each tx via getrawtransaction (avoids loading full block into memory)
+func (s *BlockScanner) scanBlockByTxIDs(height int64, blockInfo *BlockInfo, handler func(tx interface{}, metaDataTx *MetaIDDataTx, height, timestamp int64) error) (int, error) {
+	parser := NewMetaIDParser("")
+	processedCount := 0
+	metaidPinCount := 0
+	txCount := len(blockInfo.TxIDs)
+	timestamp := blockInfo.Time // already in milliseconds from GetBlockInfo
+
+	for _, txid := range blockInfo.TxIDs {
+		txHex, err := s.GetRawTransaction(txid)
+		if err != nil {
+			log.Printf("Large-block scan: getrawtransaction %s failed at height %d: %v, skipping tx", txid, height, err)
+			continue
+		}
+
+		txBytes, err := hex.DecodeString(txHex)
+		if err != nil {
+			log.Printf("Large-block scan: decode tx %s failed at height %d: %v, skipping tx", txid, height, err)
+			continue
+		}
+
+		var tx interface{}
+		if s.chainType == ChainTypeBTC {
+			var btcTx btcwire.MsgTx
+			if err := btcTx.Deserialize(bytes.NewReader(txBytes)); err != nil {
+				log.Printf("Large-block scan: deserialize BTC tx %s failed at height %d: %v, skipping tx", txid, height, err)
+				continue
+			}
+			tx = &btcTx
+		} else {
+			var mvcTx wire.MsgTx
+			if err := mvcTx.Deserialize(bytes.NewReader(txBytes)); err != nil {
+				log.Printf("Large-block scan: deserialize MVC tx %s failed at height %d: %v, skipping tx", txid, height, err)
+				continue
+			}
+			tx = &mvcTx
+		}
+
+		metaDataTx, err := parser.ParseAllPINs(tx, s.chainType)
+		if err != nil || metaDataTx == nil {
+			continue
+		}
+		metaidPinCount += len(metaDataTx.MetaIDData)
+
+		if err := handler(tx, metaDataTx, height, timestamp); err != nil {
+			log.Printf("Failed to handle transaction %s at height %d: %v", metaDataTx.TxID, height, err)
+		} else {
+			processedCount++
+		}
+	}
+
+	log.Printf("Scanned large block at height %d, transaction count: %d (chain: %s), MetaID PIN count: %d", height, txCount, s.chainType, metaidPinCount)
 	return processedCount, nil
 }
 

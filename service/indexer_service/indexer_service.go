@@ -85,6 +85,7 @@ func NewIndexerServiceWithChain(chainType indexer.ChainType) (*IndexerService, e
 		conf.Cfg.Indexer.ScanInterval,
 		chainType,
 	)
+	scanner.SetBlockSizeLimit(conf.Cfg.Indexer.MaxBlockSize)
 
 	// Enable ZMQ if configured
 	if conf.Cfg.Indexer.ZmqEnabled && conf.Cfg.Indexer.ZmqAddress != "" {

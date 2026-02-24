@@ -79,7 +79,8 @@ type IndexerConfig struct {
 	SwaggerBaseUrl     string // Swagger API base URL
 	ZmqEnabled         bool   // Enable ZMQ real-time monitoring
 	ZmqAddress         string // ZMQ server address
-	PathPrefix         string // Path prefix for reverse proxy (e.g., "/metaapp")
+	PathPrefix   string // Path prefix for reverse proxy (e.g., "/metaapp")
+	MaxBlockSize int64  // Max block size in bytes (from config MB); blocks larger use txid-list + getrawtransaction per tx to avoid OOM
 }
 
 // MetaAppConfig MetaApp configuration
@@ -158,7 +159,8 @@ func InitConfig() error {
 			SwaggerBaseUrl:     viper.GetString("indexer.swagger_base_url"),
 			ZmqEnabled:         viper.GetBool("indexer.zmq_enabled"),
 			ZmqAddress:         viper.GetString("indexer.zmq_address"),
-			PathPrefix:         viper.GetString("indexer.path_prefix"),
+			PathPrefix:   viper.GetString("indexer.path_prefix"),
+			MaxBlockSize: 0, // set in default section from indexer.max_block_size (MB) -> bytes
 		},
 
 		MetaApp: MetaAppConfig{
@@ -195,6 +197,12 @@ func InitConfig() error {
 	}
 	if Cfg.Indexer.SwaggerBaseUrl == "" {
 		Cfg.Indexer.SwaggerBaseUrl = "localhost:" + Cfg.Indexer.Port
+	}
+	// max_block_size: config in MB, convert to bytes
+	if maxBlockSizeMB := viper.GetInt("indexer.max_block_size"); maxBlockSizeMB <= 0 {
+		Cfg.Indexer.MaxBlockSize = 50 * 1024 * 1024 // 50MB default
+	} else {
+		Cfg.Indexer.MaxBlockSize = int64(maxBlockSizeMB) * 1024 * 1024
 	}
 	if Cfg.MetaApp.DeployFilePath == "" {
 		Cfg.MetaApp.DeployFilePath = "./deploy_data"

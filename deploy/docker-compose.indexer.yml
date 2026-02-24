@@ -34,10 +34,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '3'
+          memory: 6G
         reservations:
-          cpus: '0.5'
+          cpus: '1'
           memory: 512M
 
 networks:

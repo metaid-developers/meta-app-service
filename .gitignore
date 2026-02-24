@@ -43,3 +43,7 @@ tmp/
 temp/
 
 nginx.d
+
+*.md
+!README.md
+!README-zh.md

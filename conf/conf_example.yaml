@@ -12,6 +12,7 @@ indexer:
   zmq_enabled: true  # Enable ZMQ real-time monitoring
   zmq_address: "tcp://127.0.0.1:28332"  # ZMQ server address
   path_prefix: ""  # Path prefix for reverse proxy (e.g., "/metaapp"), empty string means root path. If not set, will try to get from X-Forwarded-Prefix header
+  max_block_size: 50  # Max block size in MB. Blocks larger than this are scanned by txid list + getrawtransaction per tx to avoid OOM (default 50).
 
 #database
 database:
