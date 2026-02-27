@@ -793,6 +793,10 @@ func (s *IndexerService) deployMetaApp(queueItem *model.MetaAppDeployQueue) erro
 		} else {
 			// 解压成功，删除原 zip 文件
 			os.Remove(filePath)
+			// 若解压后根目录下只有一个子目录且内含 index.html，则扁平化到部署根目录
+			if flattenErr := flattenSingleTopLevelDirIfExists(appDeployDir); flattenErr != nil {
+				log.Printf("Failed to flatten single top-level dir under %s: %v", appDeployDir, flattenErr)
+			}
 		}
 	}
 
@@ -1042,4 +1046,66 @@ func (s *IndexerService) unzipFile(zipPath, targetDir string) error {
 
 	log.Printf("Unzipped file: %s to %s", zipPath, targetDir)
 	return nil
+}
+
+// topLevelIgnoreNames 解压后根目录或单层子目录下需排除的条目（如 macOS 压缩产生的元数据），不参与「唯一子目录」判断，也不被移动到部署根目录。
+var topLevelIgnoreNames = map[string]bool{
+	"__MACOSX":  true,
+	".DS_Store": true,
+}
+
+// flattenSingleTopLevelDirIfExists 若 dir 下仅有唯一子目录且该目录内包含 index.html，
+// 则将该子目录内所有内容移动到 dir，并删除该空子目录；否则不做任何改动。
+// 会排除 __MACOSX、.DS_Store 等元数据条目。
+func flattenSingleTopLevelDirIfExists(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	var meaningful []os.DirEntry
+	for _, e := range entries {
+		if topLevelIgnoreNames[e.Name()] {
+			continue
+		}
+		meaningful = append(meaningful, e)
+	}
+	if len(meaningful) != 1 {
+		return nil
+	}
+	first := meaningful[0]
+	if !first.IsDir() {
+		return nil
+	}
+	childDir := filepath.Join(dir, first.Name())
+	// 检查子目录内是否存在 index.html（大小写不敏感）
+	childEntries, err := os.ReadDir(childDir)
+	if err != nil {
+		return err
+	}
+	var hasIndexHTML bool
+	for _, e := range childEntries {
+		if topLevelIgnoreNames[e.Name()] {
+			continue
+		}
+		if !e.IsDir() && strings.EqualFold(e.Name(), "index.html") {
+			hasIndexHTML = true
+			break
+		}
+	}
+	if !hasIndexHTML {
+		return nil
+	}
+	log.Printf("Found index.html in child directory: %s", childDir)
+	// 将子目录内所有直接子项移动到 dir（排除 __MACOSX 等）
+	for _, e := range childEntries {
+		if topLevelIgnoreNames[e.Name()] {
+			continue
+		}
+		src := filepath.Join(childDir, e.Name())
+		dst := filepath.Join(dir, e.Name())
+		if err := os.Rename(src, dst); err != nil {
+			return fmt.Errorf("move %s to %s: %w", src, dst, err)
+		}
+	}
+	return os.RemoveAll(childDir)
 }
